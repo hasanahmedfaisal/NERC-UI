@@ -7,7 +7,7 @@ function App() {
       <div className="App-header">
         NER classifier
       </div>
-      <div class="FormSection">
+      <div className="FormSection">
       <FormPropsTextFields/>
       </div>
     </div>

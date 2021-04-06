@@ -1,4 +1,5 @@
 import React from 'react';
+import RestClient from '../../utils/RestClient';
 import Loader from '../Loader'
 import DisplayInfo from '../DisplayInfo'
 import TextField from '@material-ui/core/TextField';
@@ -9,6 +10,7 @@ import Button from '@material-ui/core/Button';
 import FormControl from '@material-ui/core/FormControl';
 import Select from '@material-ui/core/Select';
 import './FormComponent.css'
+import VerticalBar from '../VerticalBar';
 
 const useStyles = makeStyles((theme) => ({
     formControl: {
@@ -19,7 +21,7 @@ const useStyles = makeStyles((theme) => ({
         '& .MuiTextField-root': {
             display: 'flex',
             margin: theme.spacing(1),
-            width: '80ch',
+            width: '110ch',
             'margin-top': '20px'
         },
     },
@@ -28,34 +30,81 @@ const useStyles = makeStyles((theme) => ({
 export default function FormPropsTextFields() {
     const classes = useStyles();
 
-    const dictionary = {
-        I: 'N',
-        am: 'N',
-        at: 'N',
-        Tempe: 'LOC'
+    const apiErrorMessage = "Something went wrong.Please try again."
+
+    const endpointDictionary = {
+        BERTCRF: 'http://6f07b0d263a9.ngrok.io/pred/',
+        BiLSTMCRF: 'http://b76e49bdf11b.ngrok.io/pred_bilstm_crf/',
+        BERT: 'http://6345c0b4776b.ngrok.io/pred_bert/',
+        CRF: 'http://c0437a5d5e88.ngrok.io/pred_crf/',
+        BiLSTM: 'http://ca6188acfe9f.ngrok.io/pred_bilstm/'
+    }
+
+    const parse = (data) => {
+        let countArr = data.map(x => x.count)
+        return countArr
     }
 
     const [model, setModel] = React.useState('');
     const [submitClicked, setSubmitClick] = React.useState(false);
     const [isLoader, setLoader] = React.useState(false);
     const [textValue, setTextValue] = React.useState('');
+    const [response, setApiResponse] = React.useState([]);
+    const [errorMessage, setErrorMessage] = React.useState('');
+    const [countList, setcountList] = React.useState([]);
 
     const handleChange = (event) => {
         setModel(event.target.value);
     };
 
-    const getNERC = () => {
-        console.log('textVal',textValue)
-        console.log('model',model)
-        setTimeout(()=>{
-            setLoader(false)
-        },1000)
+    const getResponse = async () => {
+        var data = await Promise.all(Object.values(endpointDictionary).map(url => RestClient.post(url, textValue)))
+        setApiResponse(data.map(x => x.data))
+        setcountList(parse(data))
     }
 
+    // const getResponse1 = async () => {
+    //     var listurl= ['https://api.agify.io/?name=asaa','https://api.agify.io/?name=qwerty','https://api.agify.io/?name=asaaasd']
+    //     var data = await Promise.all( listurl.map((url) => RestClient.get(url)))
+    //     console.log('data',data)
+    //     return data
+    // }
+
+
+    const getNERC = async () => {
+        try {
+            let res
+            if (model == 'All') {
+                res = await getResponse()
+                setLoader(false)
+            }
+            else {
+                res = await RestClient.post(endpointDictionary[model], textValue)
+                setApiResponse([res.data])
+                setLoader(false)
+            }
+        }
+        catch {
+            setErrorMessage(apiErrorMessage)
+            setLoader(false)
+        }
+    };
+
     const handleSubmit = () => {
+        setApiResponse({})
+        setErrorMessage('')
         setSubmitClick(true)
-        setLoader(true)
-        getNERC() // API call
+        if (textValue.length == 0) {
+            setErrorMessage('No input given')
+        }
+        else if (model.length == 0) {
+            setErrorMessage('No model selected')
+        }
+        else {
+            setLoader(true)
+            getNERC() // API call
+        }
+        // setSubmitClick(false)
     }
 
     const handleTextChange = (event) => {
@@ -69,7 +118,7 @@ export default function FormPropsTextFields() {
                     <TextField
                         id="outlined-helperText"
                         label="Text to classify"
-                        defaultValue="eg. I am at Tempe"
+                        defaultValue=""
                         helperText=""
                         variant="outlined"
                         onChange={handleTextChange}
@@ -89,18 +138,23 @@ export default function FormPropsTextFields() {
                             </MenuItem>
                             <MenuItem value="BERT">BERT</MenuItem>
                             <MenuItem value="CRF">CRF</MenuItem>
-                            <MenuItem value="LSTM">LSTM</MenuItem>
+                            <MenuItem value="BiLSTMCRF">BiLSTM+CRF</MenuItem>
+                            <MenuItem value="BERTCRF">BERT+CRF</MenuItem>
+                            <MenuItem value="BiLSTM">BiLSTM</MenuItem>
+                            <MenuItem value="All">All</MenuItem>
                         </Select>
                     </FormControl>
                 </div>
             </form>
-            <div class="button">
+            <div className="button">
                 <Button variant="contained" color="primary" onClick={handleSubmit}>
                     Submit
                 </Button>
             </div>
-            {isLoader &&  <Loader />}
-            {submitClicked && !isLoader && <DisplayInfo words={dictionary}/>}
+            {isLoader && <Loader />}
+            {submitClicked && !isLoader && (response.length != 0 || errorMessage.length != 0) &&
+                <DisplayInfo words={response} errorMessage={errorMessage} model={model} endpointKeys={Object.keys(endpointDictionary)}/>}
+            {model == 'All' && submitClicked && !isLoader && countList.length != 0 && <VerticalBar countList={countList} />}
         </React.Fragment>
     );
 }
